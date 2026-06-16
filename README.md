@@ -101,6 +101,18 @@ docker compose up -d --build
 > 若在 **TLS 拦截代理 / 自签名证书** 的网络下构建,把代理根证书(PEM,`.crt`)放进
 > `docker/certs/` 再构建即可(证书校验保持开启;目录默认为空、无影响)。
 
+### 使用 GHCR 预构建镜像
+
+仓库带有 GitHub Actions(`.github/workflows/docker-publish.yml`),每次推送到 `main` 会自动构建并发布到 GHCR:
+
+```bash
+docker run -d -p 8080:8080 -v murmur-data:/data \
+  -e JWT_SECRET=your-long-random-secret \
+  ghcr.io/normal-ex/chatnow:latest
+```
+
+> 镜像首次发布后,在 GitHub 仓库 → Packages 里把该包设为 Public 即可匿名拉取(默认私有)。
+
 ---
 
 ## ⚙️ 环境变量(`server/.env`)
