@@ -1,9 +1,35 @@
-import { type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useNavigate } from 'react-router-dom'
 import { useChat } from '@/contexts/ChatContext'
 import type { User } from '@/lib/types'
+
+/** Full-screen image preview. Click anywhere or press Esc to close. */
+function Lightbox({ src, onClose }: { src: string; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [onClose])
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4"
+      role="dialog"
+      aria-modal="true"
+    >
+      <img src={src} alt="" className="max-h-full max-w-full rounded-lg object-contain" />
+    </div>
+  )
+}
 
 const mentionRe = /(@[A-Za-z0-9_]{1,32})/g
 
@@ -38,6 +64,7 @@ function highlightMentions(
 export function MarkdownContent({ content }: { content: string }) {
   const { members } = useChat()
   const navigate = useNavigate()
+  const [zoom, setZoom] = useState<string | null>(null)
 
   const byName = new Map(members.map((m) => [m.username.toLowerCase(), m]))
   const resolve = (name: string) => byName.get(name)
@@ -61,6 +88,7 @@ export function MarkdownContent({ content }: { content: string }) {
   }
 
   return (
+    <>
     <div className="break-words text-sm leading-relaxed [word-break:break-word]">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
@@ -79,14 +107,13 @@ export function MarkdownContent({ content }: { content: string }) {
           ),
           img: ({ src, alt }) =>
             typeof src === 'string' ? (
-              <a href={src} target="_blank" rel="noreferrer noopener" className="block">
-                <img
-                  src={src}
-                  alt={alt || '图片'}
-                  loading="lazy"
-                  className="my-1 max-h-80 max-w-full rounded-lg border border-border object-contain"
-                />
-              </a>
+              <img
+                src={src}
+                alt={alt || '图片'}
+                loading="lazy"
+                onClick={() => setZoom(src)}
+                className="my-1 max-h-80 max-w-full cursor-zoom-in rounded-lg border border-border object-contain"
+              />
             ) : null,
           code: ({ children }) => (
             <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">{children}</code>
@@ -108,6 +135,8 @@ export function MarkdownContent({ content }: { content: string }) {
         {content}
       </ReactMarkdown>
     </div>
+      {zoom && <Lightbox src={zoom} onClose={() => setZoom(null)} />}
+    </>
   )
 }
 
