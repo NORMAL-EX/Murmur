@@ -45,7 +45,7 @@ func (h *Hub) checkRate(u *models.User) *Err {
 	ok, retry := h.rl.Allow(u.ID, limit, win)
 	if !ok {
 		return &Err{Status: http.StatusTooManyRequests, Code: "rate_limited",
-			Message: "发送过于频繁,请稍候再试", RetryAfter: retry}
+			Message: "发送过于频繁，请稍候再试", RetryAfter: retry}
 	}
 	return nil
 }
@@ -69,7 +69,7 @@ func (h *Hub) PostChannelMessage(sender *models.User, channelID uint, content, t
 		return nil, newErr(http.StatusForbidden, "banned", "账号已被封禁")
 	}
 	if u.Muted() {
-		return nil, newErr(http.StatusForbidden, "muted", "您已被管理员禁言,暂时无法发送消息")
+		return nil, newErr(http.StatusForbidden, "muted", "您已被管理员禁言，暂时无法发送消息")
 	}
 	content = strings.TrimSpace(content)
 	if content == "" {
@@ -164,7 +164,7 @@ func (h *Hub) PostDirectMessage(sender *models.User, toID uint, content, tempID 
 		return nil, newErr(http.StatusForbidden, "banned", "账号已被封禁")
 	}
 	if u.Muted() {
-		return nil, newErr(http.StatusForbidden, "muted", "您已被管理员禁言,暂时无法发送消息")
+		return nil, newErr(http.StatusForbidden, "muted", "您已被管理员禁言，暂时无法发送消息")
 	}
 	if !h.st.GetBool(settings.AllowDM) && !u.IsPrivileged() {
 		return nil, newErr(http.StatusForbidden, "dm_disabled", "私信功能已关闭")
@@ -282,7 +282,7 @@ func (h *Hub) handleBotChannel(channelID uint) {
 	reply, err := h.ai.Complete(ctx, hist)
 	if err != nil {
 		log.Printf("[ai] channel %d error: %v", channelID, err)
-		reply = "🤖 抱歉,我暂时无法回复:" + err.Error()
+		reply = "🤖 抱歉，我暂时无法回复：" + err.Error()
 	}
 	h.postBotMessage(channelID, reply)
 }
@@ -298,10 +298,23 @@ func (h *Hub) handleBotDM(userID uint) {
 	hist := h.buildDMContext(userID, limit)
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	reply, err := h.ai.Complete(ctx, hist)
+
+	var reply string
+	var err error
+	if h.st.GetBool(settings.AIToolsEnabled) {
+		if requester := h.reloadUser(userID); requester != nil {
+			hist = append([]ai.Message{{Role: "system", Content: botToolsPrompt(requester)}}, hist...)
+			reply, err = h.ai.CompleteWithTools(ctx, hist, []ai.ToolDef{muteToolDef()},
+				func(name, args string) string { return h.execBotTool(requester, name, args) })
+		} else {
+			reply, err = h.ai.Complete(ctx, hist)
+		}
+	} else {
+		reply, err = h.ai.Complete(ctx, hist)
+	}
 	if err != nil {
 		log.Printf("[ai] dm %d error: %v", userID, err)
-		reply = "🤖 抱歉,我暂时无法回复:" + err.Error()
+		reply = "🤖 抱歉，我暂时无法回复：" + err.Error()
 	}
 	h.postBotDM(userID, reply)
 }
