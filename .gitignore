@@ -35,3 +35,6 @@ web/.env.local
 .idea/
 .vscode/
 *.swp
+
+# local proxy CA certs (not committed)
+docker/certs/*.crt

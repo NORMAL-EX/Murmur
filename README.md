@@ -98,6 +98,9 @@ docker compose up -d --build
 数据(SQLite + 上传文件)持久化在 `murmur-data` 卷的 `/data`。
 **部署前请修改 `docker-compose.yml` 中的 `JWT_SECRET` 和超级管理员密码。**
 
+> 若在 **TLS 拦截代理 / 自签名证书** 的网络下构建,把代理根证书(PEM,`.crt`)放进
+> `docker/certs/` 再构建即可(证书校验保持开启;目录默认为空、无影响)。
+
 ---
 
 ## ⚙️ 环境变量(`server/.env`)
