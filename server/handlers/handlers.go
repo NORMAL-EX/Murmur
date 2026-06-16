@@ -118,6 +118,7 @@ func (h *H) RegisterRoutes(r *gin.Engine) {
 	{
 		admin.GET("/stats", h.Stats)
 		admin.GET("/users", h.AdminUsers)
+		admin.POST("/users", h.AdminCreateUser)
 		admin.PATCH("/users/:id", h.AdminUpdateUser)
 		admin.GET("/registrations", h.AdminRegistrations)
 		admin.POST("/registrations/:id/approve", h.AdminApprove)
@@ -126,6 +127,7 @@ func (h *H) RegisterRoutes(r *gin.Engine) {
 		admin.PUT("/settings", h.AdminPutSettings)
 		admin.GET("/ai", h.AdminGetAI)
 		admin.POST("/ai/test", h.AdminTestAI)
+		admin.POST("/smtp/test", h.AdminTestSMTP)
 		admin.GET("/audit", h.AdminAudit)
 	}
 
