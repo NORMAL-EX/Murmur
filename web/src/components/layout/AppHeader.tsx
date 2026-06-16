@@ -29,7 +29,7 @@ export function AppHeader() {
           render={
             <span
               className={`flex size-7 items-center justify-center ${
-                connected ? 'text-success' : 'text-muted-foreground'
+                connected ? 'text-foreground' : 'text-muted-foreground'
               }`}
             >
               {connected ? <Wifi className="size-4" /> : <WifiOff className="size-4" />}
