@@ -10,6 +10,7 @@ import {
   Pencil,
   MicOff,
   Mic,
+  UserPlus,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -102,6 +103,7 @@ export default function UsersAdmin() {
   const [deleteUser, setDeleteUser] = useState<User | null>(null)
   const [editUser, setEditUser] = useState<User | null>(null)
   const [muteUser, setMuteUser] = useState<User | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -135,15 +137,21 @@ export default function UsersAdmin() {
     <div className="flex flex-col gap-4">
       <h1 className="font-bold text-2xl">用户管理</h1>
 
-      <Input
-        value={q}
-        onChange={(e) => {
-          setPage(1)
-          setQ(e.target.value)
-        }}
-        placeholder="搜索用户名或昵称"
-        className="max-w-xs"
-      />
+      <div className="flex items-center gap-2">
+        <Input
+          value={q}
+          onChange={(e) => {
+            setPage(1)
+            setQ(e.target.value)
+          }}
+          placeholder="搜索用户名或昵称"
+          className="max-w-xs"
+        />
+        <Button variant="default" className="gap-1" onClick={() => setCreateOpen(true)}>
+          <UserPlus className="size-4" />
+          新建用户
+        </Button>
+      </div>
 
       <div className="overflow-x-auto rounded-lg border">
         <Table>
@@ -306,6 +314,17 @@ export default function UsersAdmin() {
         </div>
       </div>
 
+      {createOpen && (
+        <CreateUserDialog
+          isSuper={isSuper}
+          onClose={() => setCreateOpen(false)}
+          onSaved={() => {
+            setCreateOpen(false)
+            load()
+          }}
+        />
+      )}
+
       {rateUser && (
         <RateDialog
           user={rateUser}
@@ -344,7 +363,7 @@ export default function UsersAdmin() {
           <AlertDialogHeader>
             <AlertDialogTitle>删除用户</AlertDialogTitle>
             <AlertDialogDescription>
-              确定要删除 @{deleteUser?.username} 吗?此操作不可撤销。
+              确定要删除 @{deleteUser?.username} 吗？此操作不可撤销。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -361,6 +380,99 @@ export default function UsersAdmin() {
         </AlertDialogPopup>
       </AlertDialog>
     </div>
+  )
+}
+
+function CreateUserDialog({
+  isSuper,
+  onClose,
+  onSaved,
+}: {
+  isSuper: boolean
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [username, setUsername] = useState('')
+  const [nickname, setNickname] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [role, setRole] = useState<'user' | 'admin'>('user')
+  const [saving, setSaving] = useState(false)
+
+  const save = async () => {
+    if (username.trim().length < 3) {
+      toast.error('用户名至少 3 位')
+      return
+    }
+    if (password.length < 6) {
+      toast.error('密码至少 6 位')
+      return
+    }
+    setSaving(true)
+    try {
+      await api.admin.createUser({
+        username: username.trim(),
+        password,
+        nickname: nickname.trim() || undefined,
+        email: email.trim() || undefined,
+        role,
+      })
+      toast.success('用户已创建')
+      onSaved()
+    } catch (e) {
+      toast.error('创建失败', e instanceof ApiError ? e.message : undefined)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogPopup className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>新建用户</DialogTitle>
+          <DialogDescription>直接创建一个已激活账号（无需审核 / 邮箱验证）。</DialogDescription>
+        </DialogHeader>
+        <DialogPanel className="flex flex-col gap-3">
+          <Field label="用户名">
+            <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="字母、数字、下划线" />
+          </Field>
+          <Field label="昵称（可选）">
+            <Input value={nickname} onChange={(e) => setNickname(e.target.value)} />
+          </Field>
+          <Field label="邮箱（可选）">
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </Field>
+          <Field label="密码">
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="至少 6 位"
+            />
+          </Field>
+          {isSuper && (
+            <Field label="角色">
+              <Select value={role} onValueChange={(v) => setRole(v as 'user' | 'admin')}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectPopup>
+                  <SelectItem value="user">用户</SelectItem>
+                  <SelectItem value="admin">管理员</SelectItem>
+                </SelectPopup>
+              </Select>
+            </Field>
+          )}
+        </DialogPanel>
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>取消</DialogClose>
+          <Button variant="default" onClick={save} disabled={saving}>
+            创建
+          </Button>
+        </DialogFooter>
+      </DialogPopup>
+    </Dialog>
   )
 }
 
@@ -404,7 +516,7 @@ function EditUserDialog({
       <DialogPopup className="max-w-sm">
         <DialogHeader>
           <DialogTitle>编辑用户 · @{user.username}</DialogTitle>
-          <DialogDescription>修改该用户资料,留空密码则不更改。</DialogDescription>
+          <DialogDescription>修改该用户资料，留空密码则不更改。</DialogDescription>
         </DialogHeader>
         <DialogPanel className="flex flex-col gap-3">
           <Field label="用户名">
@@ -419,7 +531,7 @@ function EditUserDialog({
           <Field label="头像 URL">
             <Input value={avatar} onChange={(e) => setAvatar(e.target.value)} placeholder="/uploads/... 或 https://" />
           </Field>
-          <Field label="重置密码(留空不改)">
+          <Field label="重置密码（留空不改）">
             <Input
               type="password"
               value={password}
