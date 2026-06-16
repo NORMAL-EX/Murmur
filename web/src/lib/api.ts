@@ -182,6 +182,13 @@ export const api = {
         'GET',
         `/admin/users?q=${encodeURIComponent(q)}&page=${page}&page_size=${pageSize}`,
       ),
+    createUser: (b: {
+      username: string
+      password: string
+      nickname?: string
+      email?: string
+      role?: Role
+    }) => request<User>('POST', '/admin/users', b),
     updateUser: (
       id: number,
       b: {
@@ -206,6 +213,8 @@ export const api = {
     getAISettings: () => request<AISettings>('GET', '/admin/ai'),
     testAI: () =>
       request<{ ok: boolean; message: string; reply?: string }>('POST', '/admin/ai/test'),
+    testSmtp: (to: string) =>
+      request<{ ok: boolean; message: string }>('POST', '/admin/smtp/test', { to }),
     auditLogs: (page = 1) =>
       request<Paginated<AuditLog>>('GET', `/admin/audit?page=${page}`),
     // Super-admin reveal of recalled content ("点击查看").

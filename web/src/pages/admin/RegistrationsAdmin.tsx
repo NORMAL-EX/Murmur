@@ -57,6 +57,9 @@ export default function RegistrationsAdmin() {
                 <div className="truncate text-muted-foreground text-xs">
                   @{u.username} · 申请于 {formatRelative(u.created_at)}
                 </div>
+                {u.email && (
+                  <div className="truncate text-muted-foreground text-xs">📧 {u.email}</div>
+                )}
               </div>
               <Button
                 variant="default"
