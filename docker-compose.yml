@@ -1,0 +1,23 @@
+services:
+  murmur:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: murmur:latest
+    container_name: murmur
+    ports:
+      - "8080:8080"
+    environment:
+      # 生产环境务必修改为足够长的随机字符串
+      JWT_SECRET: "please-change-this-to-a-long-random-secret"
+      # 首次启动自动创建的超级管理员
+      SUPER_ADMIN_USERNAME: "admin"
+      SUPER_ADMIN_PASSWORD: "admin12345"
+      DB_PATH: "/data/murmur.db"
+      UPLOAD_DIR: "/data/uploads"
+    volumes:
+      - murmur-data:/data
+    restart: unless-stopped
+
+volumes:
+  murmur-data:

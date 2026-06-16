@@ -1,0 +1,13 @@
+**/node_modules
+web/dist
+web/source
+server/data
+server/uploads
+**/*.db
+**/*.db-shm
+**/*.db-wal
+.git
+.gitignore
+**/.env
+**/*.log
+README.md
