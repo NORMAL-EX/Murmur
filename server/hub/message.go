@@ -279,7 +279,14 @@ func (h *Hub) handleBotChannel(channelID uint) {
 	hist := h.buildChannelContext(channelID, limit)
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	reply, err := h.ai.Complete(ctx, hist)
+	var reply string
+	var err error
+	if h.st.GetBool(settings.AIToolsEnabled) {
+		reply, err = h.ai.CompleteWithTools(ctx, hist, botTools(false),
+			func(name, args string) string { return h.execBotTool(nil, name, args) })
+	} else {
+		reply, err = h.ai.Complete(ctx, hist)
+	}
 	if err != nil {
 		log.Printf("[ai] channel %d error: %v", channelID, err)
 		reply = "🤖 抱歉，我暂时无法回复：" + err.Error()
@@ -304,7 +311,7 @@ func (h *Hub) handleBotDM(userID uint) {
 	if h.st.GetBool(settings.AIToolsEnabled) {
 		if requester := h.reloadUser(userID); requester != nil {
 			hist = append([]ai.Message{{Role: "system", Content: botToolsPrompt(requester)}}, hist...)
-			reply, err = h.ai.CompleteWithTools(ctx, hist, []ai.ToolDef{muteToolDef()},
+			reply, err = h.ai.CompleteWithTools(ctx, hist, botTools(true),
 				func(name, args string) string { return h.execBotTool(requester, name, args) })
 		} else {
 			reply, err = h.ai.Complete(ctx, hist)
