@@ -44,12 +44,7 @@ function SearchDialog({ channelId }: { channelId: number }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="搜索消息"
-            className="text-muted-foreground hover:text-foreground"
-          >
+          <Button variant="outline" size="icon" aria-label="搜索消息">
             <Search />
           </Button>
         }

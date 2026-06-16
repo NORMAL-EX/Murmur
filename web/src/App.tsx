@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import LoginPage from '@/pages/LoginPage'
 import RegisterPage from '@/pages/RegisterPage'
@@ -16,6 +17,18 @@ import { AdminLayout } from '@/components/layout/AdminLayout'
 import { RequireAuth, RequireAdmin } from '@/components/RequireAuth'
 
 export default function App() {
+  // Suppress the native browser context menu app-wide (the app provides its own
+  // right-click menus); keep it inside text fields so paste/copy still works.
+  useEffect(() => {
+    const onCtx = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null
+      if (t && t.closest('input, textarea, [contenteditable="true"]')) return
+      e.preventDefault()
+    }
+    document.addEventListener('contextmenu', onCtx)
+    return () => document.removeEventListener('contextmenu', onCtx)
+  }, [])
+
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
