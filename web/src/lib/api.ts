@@ -6,6 +6,8 @@ import type {
   Conversation,
   DashboardStats,
   DirectMessage,
+  DMAuditConversation,
+  DMAuditThread,
   MentionNotice,
   Message,
   Paginated,
@@ -203,5 +205,9 @@ export const api = {
       request<{ id: number; content: string }>('GET', `/admin/messages/${id}`),
     revealDm: (id: number) =>
       request<{ id: number; content: string }>('GET', `/admin/dm-messages/${id}`),
+    // Super-admin DM review.
+    dmConversations: () => request<DMAuditConversation[]>('GET', '/admin/dm/conversations'),
+    dmThread: (a: number, b: number) =>
+      request<DMAuditThread>('GET', `/admin/dm/thread?a=${a}&b=${b}`),
   },
 }

@@ -142,6 +142,30 @@ export interface AuditLog {
   created_at: string
 }
 
+export interface DMAuditConversation {
+  user_a: User
+  user_b: User
+  last_at: string
+  preview: string
+  count: number
+}
+
+export interface DMAuditMessageItem {
+  id: number
+  sender_id: number
+  receiver_id: number
+  content: string
+  recalled: boolean
+  recalled_by: number
+  created_at: string
+}
+
+export interface DMAuditThread {
+  user_a: User
+  user_b: User
+  items: DMAuditMessageItem[]
+}
+
 // ---- WebSocket envelopes ----
 
 export type WSOutbound =

@@ -134,6 +134,8 @@ func (h *H) RegisterRoutes(r *gin.Engine) {
 		super.DELETE("/users/:id", h.SuperDeleteUser)
 		super.GET("/messages/:id", h.SuperGetMessage)
 		super.GET("/dm-messages/:id", h.SuperGetDM)
+		super.GET("/dm/conversations", h.AdminDMConversations)
+		super.GET("/dm/thread", h.AdminDMThread)
 	}
 
 	// WebSocket (JWT via ?token=).
