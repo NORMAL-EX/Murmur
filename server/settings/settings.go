@@ -14,20 +14,22 @@ import (
 
 // Keys
 const (
-	SiteTitle         = "site_title"
-	SiteDescription   = "site_description"
-	RegistrationOpen  = "registration_open"
-	RegistrationRev   = "registration_review"
-	RegistrationMail  = "registration_email_verify"
-	AllowDM           = "allow_dm"
+	SiteTitle        = "site_title"
+	SiteDescription  = "site_description"
+	RegistrationOpen = "registration_open"
+	RegistrationRev  = "registration_review"
+	RegistrationMail = "registration_email_verify"
+	AllowDM          = "allow_dm"
 
-	SMTPHost     = "smtp_host"
-	SMTPPort     = "smtp_port"
-	SMTPUsername = "smtp_username"
-	SMTPPassword = "smtp_password"
-	SMTPFrom     = "smtp_from"
-	SMTPFromName = "smtp_from_name"
-	SMTPSSL      = "smtp_ssl"
+	SMTPHost          = "smtp_host"
+	SMTPPort          = "smtp_port"
+	SMTPUsername      = "smtp_username"
+	SMTPPassword      = "smtp_password"
+	SMTPFrom          = "smtp_from"
+	SMTPFromName      = "smtp_from_name"
+	SMTPSSL           = "smtp_ssl"
+	MailSubject       = "mail_subject"
+	MailBody          = "mail_body"
 	MaxMessageLength  = "max_message_length"
 	Announcement      = "announcement"
 	DefaultTheme      = "default_theme"
@@ -45,26 +47,29 @@ const (
 	AIContextLimit = "ai_context_char_limit"
 	AICooldown     = "ai_cooldown_seconds"
 	AIAllowDM      = "ai_allow_dm"
+	AIToolsEnabled = "ai_tools_enabled"
 	BotName        = "bot_name"
 	BotAvatar      = "bot_avatar"
 )
 
 // Defaults applied on first boot.
 var Defaults = map[string]string{
-	SiteTitle:         "Murmur",
-	SiteDescription:   "自托管实时聊天室",
-	RegistrationOpen:  "true",
-	RegistrationRev:   "false",
-	RegistrationMail:  "false",
-	AllowDM:           "true",
+	SiteTitle:        "Murmur",
+	SiteDescription:  "自托管实时聊天室",
+	RegistrationOpen: "true",
+	RegistrationRev:  "false",
+	RegistrationMail: "false",
+	AllowDM:          "true",
 
-	SMTPHost:     "",
-	SMTPPort:     "587",
-	SMTPUsername: "",
-	SMTPPassword: "",
-	SMTPFrom:     "",
-	SMTPFromName: "Murmur",
-	SMTPSSL:      "false",
+	SMTPHost:          "",
+	SMTPPort:          "587",
+	SMTPUsername:      "",
+	SMTPPassword:      "",
+	SMTPFrom:          "",
+	SMTPFromName:      "Murmur",
+	SMTPSSL:           "false",
+	MailSubject:       "{site} 注册验证码",
+	MailBody:          "【{site}】您的注册验证码是 {code}，10 分钟内有效。\n\n如非本人操作请忽略此邮件。",
 	MaxMessageLength:  "2000",
 	Announcement:      "",
 	DefaultTheme:      "system",
@@ -76,12 +81,13 @@ var Defaults = map[string]string{
 	AIBaseURL:      "https://api.openai.com/v1",
 	AIAPIKey:       "",
 	AIModel:        "gpt-4o-mini",
-	AISystemPrompt: "你是 Murmur 聊天室里的友好 AI 助手,请用简洁、口语化的中文回答大家。",
+	AISystemPrompt: "你是 Murmur 聊天室里的友好 AI 助手，请用简洁、口语化的中文回答大家。",
 	AITemperature:  "0.7",
 	AIMaxTokens:    "1024",
 	AIContextLimit: "5000",
 	AICooldown:     "10",
 	AIAllowDM:      "false",
+	AIToolsEnabled: "false",
 	BotName:        "Murmur Bot",
 	BotAvatar:      "",
 }

@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"crypto/rand"
-	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
@@ -47,9 +46,16 @@ func (h *H) smtpConfig() mailer.Config {
 
 func (h *H) sendVerifyEmail(to, code string) error {
 	site := h.St.Get(settings.SiteTitle)
-	subject := site + " 注册验证码"
-	body := fmt.Sprintf("【%s】您的注册验证码是 %s,10 分钟内有效。\n\n如非本人操作请忽略此邮件。", site, code)
-	return mailer.Send(h.smtpConfig(), to, subject, body)
+	subject := strings.TrimSpace(h.St.Get(settings.MailSubject))
+	if subject == "" {
+		subject = site + " 注册验证码"
+	}
+	body := strings.TrimSpace(h.St.Get(settings.MailBody))
+	if body == "" {
+		body = "【{site}】您的注册验证码是 {code}，10 分钟内有效。"
+	}
+	r := strings.NewReplacer("{site}", site, "{code}", code)
+	return mailer.Send(h.smtpConfig(), to, r.Replace(subject), r.Replace(body))
 }
 
 // reservedUsernames cannot be registered by normal users.
@@ -96,7 +102,7 @@ func (h *H) Register(c *gin.Context) {
 			return
 		}
 		if !h.smtpConfig().Configured() {
-			fail(c, http.StatusServiceUnavailable, "mail_unconfigured", "邮件服务未配置,请联系管理员")
+			fail(c, http.StatusServiceUnavailable, "mail_unconfigured", "邮件服务未配置，请联系管理员")
 			return
 		}
 		var ec int64
@@ -152,7 +158,6 @@ func (h *H) Register(c *gin.Context) {
 
 	if emailVerify {
 		if err := h.sendVerifyEmail(u.Email, u.VerifyCode); err != nil {
-			// Account exists but the mail failed; let the user retry via resend.
 			c.JSON(http.StatusOK, gin.H{"email_verification": true, "email": u.Email, "mail_error": err.Error()})
 			return
 		}
@@ -190,7 +195,7 @@ func (h *H) VerifyEmail(c *gin.Context) {
 		return
 	}
 	if u.VerifyCode == "" || u.VerifyExpires == nil || time.Now().After(*u.VerifyExpires) {
-		fail(c, http.StatusBadRequest, "code_expired", "验证码已过期,请重新获取")
+		fail(c, http.StatusBadRequest, "code_expired", "验证码已过期，请重新获取")
 		return
 	}
 	if strings.TrimSpace(req.Code) != u.VerifyCode {
@@ -243,7 +248,7 @@ func (h *H) ResendCode(c *gin.Context) {
 	exp := time.Now().Add(10 * time.Minute)
 	h.DB.Model(&u).Updates(map[string]any{"verify_code": code, "verify_expires": exp})
 	if err := h.sendVerifyEmail(u.Email, code); err != nil {
-		fail(c, http.StatusServiceUnavailable, "mail_failed", "验证码发送失败:"+err.Error())
+		fail(c, http.StatusServiceUnavailable, "mail_failed", "验证码发送失败："+err.Error())
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
@@ -287,7 +292,7 @@ func (h *H) Login(c *gin.Context) {
 		return
 	}
 	if u.Status == models.StatusPending {
-		fail(c, http.StatusForbidden, "pending", "账号待审核,请等待管理员通过")
+		fail(c, http.StatusForbidden, "pending", "账号待审核，请等待管理员通过")
 		return
 	}
 	token, _ := auth.GenerateToken(h.Cfg.JWTSecret, u.ID, u.Role)
