@@ -111,7 +111,7 @@ docker compose up -d --build
 ```bash
 docker run -d -p 8080:8080 -v murmur-data:/data \
   -e JWT_SECRET=your-long-random-secret \
-  ghcr.io/normal-ex/chatnow:latest
+  ghcr.io/normal-ex/murmur:latest
 ```
 
 > 镜像首次发布后,在 GitHub 仓库 → Packages 里把该包设为 Public 即可匿名拉取(默认私有)。
