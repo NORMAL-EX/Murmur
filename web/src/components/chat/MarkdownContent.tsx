@@ -77,6 +77,17 @@ export function MarkdownContent({ content }: { content: string }) {
               {children}
             </a>
           ),
+          img: ({ src, alt }) =>
+            typeof src === 'string' ? (
+              <a href={src} target="_blank" rel="noreferrer noopener" className="block">
+                <img
+                  src={src}
+                  alt={alt || '图片'}
+                  loading="lazy"
+                  className="my-1 max-h-80 max-w-full rounded-lg border border-border object-contain"
+                />
+              </a>
+            ) : null,
           code: ({ children }) => (
             <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]">{children}</code>
           ),

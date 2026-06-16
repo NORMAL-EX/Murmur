@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Send } from 'lucide-react'
+import { ImagePlus, Loader2, Send, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { api, ApiError } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import { useChat } from '@/contexts/ChatContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
@@ -28,6 +30,16 @@ export function MessageComposer() {
   const [mention, setMention] = useState<{ query: string; start: number } | null>(null)
   const [mentionIdx, setMentionIdx] = useState(0)
   const [now, setNow] = useState(Date.now())
+  const [image, setImage] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const previewUrl = useMemo(() => (image ? URL.createObjectURL(image) : null), [image])
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+    }
+  }, [previewUrl])
 
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
   const isChannel = view?.type === 'channel'
@@ -71,12 +83,44 @@ export function MessageComposer() {
     })
   }
 
-  const submit = () => {
-    const content = text.trim()
-    if (!content || tooLong || cooldownLeft > 0 || readonlyBlocked || !connected) return
+  const pickImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f) return
+    if (!f.type.startsWith('image/')) {
+      toast.error('仅支持图片文件')
+      return
+    }
+    if (f.size > 8 << 20) {
+      toast.error('图片不能超过 8MB')
+      return
+    }
+    setImage(f)
+  }
+
+  const submit = async () => {
+    if (uploading || cooldownLeft > 0 || readonlyBlocked || !connected) return
+    const body = text.trim()
+    if ((!body && !image) || tooLong) return
+
+    let content = body
+    if (image) {
+      setUploading(true)
+      try {
+        const { url } = await api.uploadImage(image)
+        content = body ? `${body}\n![图片](${url})` : `![图片](${url})`
+      } catch (err) {
+        toast.error('图片上传失败', err instanceof ApiError ? err.message : undefined)
+        setUploading(false)
+        return
+      }
+      setUploading(false)
+    }
+
     if (isChannel) sendMessage(content)
     else if (view?.type === 'dm') sendDm(content)
     setText('')
+    setImage(null)
     setMention(null)
   }
 
@@ -155,7 +199,39 @@ export function MessageComposer() {
         </div>
       )}
 
+      {image && previewUrl && (
+        <div className="mb-2 flex items-center gap-2">
+          <div className="relative">
+            <img
+              src={previewUrl}
+              alt="预览"
+              className="size-16 rounded-lg border border-border object-cover"
+            />
+            <button
+              type="button"
+              onClick={() => setImage(null)}
+              className="-right-1.5 -top-1.5 absolute flex size-5 items-center justify-center rounded-full bg-destructive text-white"
+              aria-label="移除图片"
+            >
+              <X className="size-3" />
+            </button>
+          </div>
+          <span className="truncate text-muted-foreground text-xs">{image.name}</span>
+        </div>
+      )}
+
       <div className="flex items-end gap-2">
+        <input ref={fileRef} type="file" accept="image/*" hidden onChange={pickImage} />
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => fileRef.current?.click()}
+          disabled={disabled || uploading}
+          aria-label="发送图片"
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <ImagePlus />
+        </Button>
         <Textarea
           ref={taRef}
           value={text}
@@ -176,10 +252,10 @@ export function MessageComposer() {
           variant="default"
           size="icon"
           onClick={submit}
-          disabled={disabled || !text.trim() || tooLong}
+          disabled={disabled || uploading || (!text.trim() && !image) || tooLong}
           aria-label="发送"
         >
-          <Send />
+          {uploading ? <Loader2 className="animate-spin" /> : <Send />}
         </Button>
       </div>
       <div className="mt-1 flex items-center justify-between px-1">

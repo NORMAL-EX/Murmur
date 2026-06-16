@@ -105,6 +105,11 @@ export const api = {
     fd.append('avatar', file)
     return request<{ avatar_url: string }>('POST', '/me/avatar', fd)
   },
+  uploadImage: (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return request<{ url: string }>('POST', '/uploads', fd)
+  },
 
   // settings (public)
   settings: () => request<PublicSettings>('GET', '/settings'),

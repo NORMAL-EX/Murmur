@@ -75,6 +75,7 @@ func (h *H) RegisterRoutes(r *gin.Engine) {
 		authed.GET("/me", h.Me)
 		authed.PATCH("/me", h.UpdateMe)
 		authed.POST("/me/avatar", h.UploadAvatar)
+		authed.POST("/uploads", h.UploadImage)
 
 		authed.GET("/users", h.ListUsers)
 		authed.GET("/users/:id", h.GetUser)
