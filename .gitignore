@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+web/node_modules/
+
+# Build output
+web/dist/
+web/source/
+*.tsbuildinfo
+
+# Go
+server/murmur
+server/server
+server/*.exe
+
+# Data & uploads (runtime)
+server/data/
+server/uploads/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Env
+.env
+server/.env
+web/.env
+web/.env.local
+
+# Logs
+*.log
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
