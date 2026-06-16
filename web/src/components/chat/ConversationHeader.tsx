@@ -108,7 +108,7 @@ export function ConversationHeader({ onOpenSidebar }: { onOpenSidebar?: () => vo
     subtitle = ch?.description || `在线 ${onlineIds.size} 人`
   } else if (view?.type === 'dm') {
     const u = membersById.get(view.userId) || conversations.find((c) => c.user.id === view.userId)?.user
-    const online = onlineIds.has(view.userId)
+    const online = onlineIds.has(view.userId) || u?.role === 'bot'
     title = (
       <button
         type="button"
