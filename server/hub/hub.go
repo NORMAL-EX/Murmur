@@ -186,6 +186,7 @@ type incoming struct {
 	To        uint   `json:"to"`
 	From      uint   `json:"from"`
 	TempID    string `json:"temp_id"`
+	ReplyTo   uint   `json:"reply_to"`
 }
 
 func (h *Hub) handleIncoming(c *Client, data []byte) {
@@ -195,11 +196,11 @@ func (h *Hub) handleIncoming(c *Client, data []byte) {
 	}
 	switch in.Type {
 	case "chat_message":
-		if _, err := h.PostChannelMessage(c.user, in.ChannelID, in.Content, in.TempID); err != nil {
+		if _, err := h.PostChannelMessage(c.user, in.ChannelID, in.Content, in.TempID, in.ReplyTo); err != nil {
 			c.sendErr(err)
 		}
 	case "dm_message":
-		if _, err := h.PostDirectMessage(c.user, in.To, in.Content, in.TempID); err != nil {
+		if _, err := h.PostDirectMessage(c.user, in.To, in.Content, in.TempID, in.ReplyTo); err != nil {
 			c.sendErr(err)
 		}
 	case "typing":

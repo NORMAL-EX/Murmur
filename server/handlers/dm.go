@@ -122,6 +122,7 @@ func (h *H) DMMessages(c *gin.Context) {
 
 type sendDMReq struct {
 	Content string `json:"content"`
+	ReplyTo uint   `json:"reply_to"`
 }
 
 func (h *H) SendDM(c *gin.Context) {
@@ -136,7 +137,7 @@ func (h *H) SendDM(c *gin.Context) {
 		fail(c, http.StatusBadRequest, "bad_request", "参数错误")
 		return
 	}
-	dto, e := h.Hub.PostDirectMessage(u, other, req.Content, "")
+	dto, e := h.Hub.PostDirectMessage(u, other, req.Content, "", req.ReplyTo)
 	if e != nil {
 		failErr(c, e)
 		return

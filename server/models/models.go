@@ -73,6 +73,7 @@ type Message struct {
 	ID         uint       `gorm:"primarykey" json:"id"`
 	ChannelID  uint       `gorm:"index" json:"channel_id"`
 	SenderID   uint       `gorm:"index" json:"sender_id"`
+	ReplyToID  *uint      `gorm:"index" json:"reply_to_id,omitempty"`
 	Content    string     `gorm:"type:text" json:"content"`
 	Edited     bool       `gorm:"default:false" json:"edited"`
 	IsBot      bool       `gorm:"default:false" json:"is_bot"`
@@ -88,6 +89,7 @@ type DirectMessage struct {
 	ID         uint       `gorm:"primarykey" json:"id"`
 	SenderID   uint       `gorm:"index" json:"sender_id"`
 	ReceiverID uint       `gorm:"index" json:"receiver_id"`
+	ReplyToID  *uint      `gorm:"index" json:"reply_to_id,omitempty"`
 	Content    string     `gorm:"type:text" json:"content"`
 	ReadAt     *time.Time `json:"read_at"`
 	Recalled   bool       `gorm:"default:false" json:"recalled"`
@@ -131,11 +133,21 @@ type ReactionDTO struct {
 	Reacted bool   `json:"reacted"`
 }
 
+// ReplyPreview is a compact view of the message being replied to.
+type ReplyPreview struct {
+	ID         uint   `json:"id"`
+	SenderID   uint   `json:"sender_id"`
+	SenderName string `json:"sender_name"`
+	Content    string `json:"content"`
+	Recalled   bool   `json:"recalled"`
+}
+
 type MessageDTO struct {
-	ID        uint          `json:"id"`
-	ChannelID uint          `json:"channel_id"`
-	SenderID  uint          `json:"sender_id"`
-	Sender    *User         `json:"sender,omitempty"`
+	ID         uint          `json:"id"`
+	ChannelID  uint          `json:"channel_id"`
+	SenderID   uint          `json:"sender_id"`
+	Sender     *User         `json:"sender,omitempty"`
+	ReplyTo    *ReplyPreview `json:"reply_to,omitempty"`
 	Content    string        `json:"content"`
 	Edited     bool          `json:"edited"`
 	Deleted    bool          `json:"deleted"`
@@ -148,15 +160,16 @@ type MessageDTO struct {
 }
 
 type DirectMessageDTO struct {
-	ID         uint       `json:"id"`
-	SenderID   uint       `json:"sender_id"`
-	ReceiverID uint       `json:"receiver_id"`
-	Sender     *User      `json:"sender,omitempty"`
-	Content    string     `json:"content"`
-	ReadAt     *time.Time `json:"read_at"`
-	Recalled   bool       `json:"recalled"`
-	RecalledBy uint       `json:"recalled_by"`
-	CreatedAt  time.Time  `json:"created_at"`
+	ID         uint          `json:"id"`
+	SenderID   uint          `json:"sender_id"`
+	ReceiverID uint          `json:"receiver_id"`
+	Sender     *User         `json:"sender,omitempty"`
+	ReplyTo    *ReplyPreview `json:"reply_to,omitempty"`
+	Content    string        `json:"content"`
+	ReadAt     *time.Time    `json:"read_at"`
+	Recalled   bool          `json:"recalled"`
+	RecalledBy uint          `json:"recalled_by"`
+	CreatedAt  time.Time     `json:"created_at"`
 }
 
 type ConversationDTO struct {

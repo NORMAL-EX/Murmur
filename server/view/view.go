@@ -12,6 +12,27 @@ import (
 )
 
 var mentionRe = regexp.MustCompile(`@([A-Za-z0-9_]{1,32})`)
+var imgMdRe = regexp.MustCompile(`!\[[^\]]*\]\([^)]*\)`)
+
+// previewText makes a short single-line preview, collapsing image markdown.
+func previewText(s string, n int) string {
+	s = strings.TrimSpace(imgMdRe.ReplaceAllString(s, "[图片]"))
+	r := []rune(s)
+	if len(r) > n {
+		return string(r[:n]) + "…"
+	}
+	return s
+}
+
+func displayName(u *models.User) string {
+	if u == nil {
+		return "用户"
+	}
+	if u.Nickname != "" {
+		return u.Nickname
+	}
+	return u.Username
+}
 
 // ExtractMentionUsernames returns unique, lower-cased usernames referenced with
 // @ in the content.
@@ -117,13 +138,42 @@ func BuildMessageDTOs(db *gorm.DB, msgs []models.Message, viewerID uint) []model
 		mentionMap[mn.MessageID] = append(mentionMap[mn.MessageID], mn.MentionedUserID)
 	}
 
+	// reply previews
+	var replyIDs []uint
+	for _, m := range msgs {
+		if m.ReplyToID != nil {
+			replyIDs = append(replyIDs, *m.ReplyToID)
+		}
+	}
+	replyMap := map[uint]*models.ReplyPreview{}
+	if len(replyIDs) > 0 {
+		var replied []models.Message
+		db.Where("id IN ?", uniqueIDs(replyIDs)).Find(&replied)
+		var rsIDs []uint
+		for _, r := range replied {
+			rsIDs = append(rsIDs, r.SenderID)
+		}
+		rs := loadUsers(db, uniqueIDs(rsIDs))
+		for _, r := range replied {
+			gone := r.Recalled || r.Deleted
+			content := r.Content
+			if gone {
+				content = ""
+			}
+			replyMap[r.ID] = &models.ReplyPreview{
+				ID: r.ID, SenderID: r.SenderID, SenderName: displayName(rs[r.SenderID]),
+				Content: previewText(content, 80), Recalled: gone,
+			}
+		}
+	}
+
 	out := make([]models.MessageDTO, 0, len(msgs))
 	for _, m := range msgs {
 		dto := models.MessageDTO{
-			ID:        m.ID,
-			ChannelID: m.ChannelID,
-			SenderID:  m.SenderID,
-			Sender:    senders[m.SenderID],
+			ID:         m.ID,
+			ChannelID:  m.ChannelID,
+			SenderID:   m.SenderID,
+			Sender:     senders[m.SenderID],
 			Content:    m.Content,
 			Edited:     m.Edited,
 			Deleted:    m.Deleted,
@@ -133,6 +183,9 @@ func BuildMessageDTOs(db *gorm.DB, msgs []models.Message, viewerID uint) []model
 			Mentions:   mentionMap[m.ID],
 			Reactions:  []models.ReactionDTO{},
 			CreatedAt:  m.CreatedAt,
+		}
+		if m.ReplyToID != nil {
+			dto.ReplyTo = replyMap[*m.ReplyToID]
 		}
 		// Recalled/deleted content is never sent over the wire; super admins
 		// fetch the original on demand via the admin reveal endpoint.
@@ -162,11 +215,27 @@ func BuildDMDTO(db *gorm.DB, dm models.DirectMessage) models.DirectMessageDTO {
 	if dm.Recalled {
 		content = ""
 	}
+	var reply *models.ReplyPreview
+	if dm.ReplyToID != nil {
+		var r models.DirectMessage
+		if db.First(&r, *dm.ReplyToID).Error == nil {
+			ru := loadUsers(db, []uint{r.SenderID})[r.SenderID]
+			c := r.Content
+			if r.Recalled {
+				c = ""
+			}
+			reply = &models.ReplyPreview{
+				ID: r.ID, SenderID: r.SenderID, SenderName: displayName(ru),
+				Content: previewText(c, 80), Recalled: r.Recalled,
+			}
+		}
+	}
 	return models.DirectMessageDTO{
 		ID:         dm.ID,
 		SenderID:   dm.SenderID,
 		ReceiverID: dm.ReceiverID,
 		Sender:     senders[dm.SenderID],
+		ReplyTo:    reply,
 		Content:    content,
 		ReadAt:     dm.ReadAt,
 		Recalled:   dm.Recalled,

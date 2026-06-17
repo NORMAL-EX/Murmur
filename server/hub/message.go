@@ -60,7 +60,7 @@ func (h *Hub) maxLen() int {
 
 // PostChannelMessage validates, persists, broadcasts and (if needed) triggers
 // the AI bot. Shared by the WS read loop and any REST caller.
-func (h *Hub) PostChannelMessage(sender *models.User, channelID uint, content, tempID string) (*models.MessageDTO, *Err) {
+func (h *Hub) PostChannelMessage(sender *models.User, channelID uint, content, tempID string, replyToID uint) (*models.MessageDTO, *Err) {
 	u := h.reloadUser(sender.ID)
 	if u == nil {
 		return nil, newErr(http.StatusUnauthorized, "unauthorized", "用户不存在")
@@ -91,6 +91,14 @@ func (h *Hub) PostChannelMessage(sender *models.User, channelID uint, content, t
 	}
 
 	msg := models.Message{ChannelID: channelID, SenderID: u.ID, Content: content}
+	var repliedSenderID uint
+	if replyToID > 0 {
+		var rm models.Message
+		if h.db.Where("id = ? AND channel_id = ?", replyToID, channelID).First(&rm).Error == nil {
+			msg.ReplyToID = &replyToID
+			repliedSenderID = rm.SenderID
+		}
+	}
 	if err := h.db.Create(&msg).Error; err != nil {
 		return nil, newErr(http.StatusInternalServerError, "db", "保存消息失败")
 	}
@@ -115,6 +123,10 @@ func (h *Hub) PostChannelMessage(sender *models.User, channelID uint, content, t
 			botMentioned = true
 		}
 	}
+	// Replying to one of the bot's messages also triggers it.
+	if repliedSenderID == h.botID {
+		botMentioned = true
+	}
 
 	dto := view.BuildMessageDTO(h.db, msg, u.ID)
 
@@ -134,7 +146,7 @@ func (h *Hub) PostChannelMessage(sender *models.User, channelID uint, content, t
 	}
 
 	if botMentioned {
-		go h.handleBotChannel(channelID)
+		go h.handleBotChannel(channelID, u.ID, msg.ReplyToID)
 	}
 
 	return &dto, nil
@@ -155,7 +167,7 @@ func (h *Hub) notifyMention(userID, messageID, channelID uint, msg models.Messag
 }
 
 // PostDirectMessage validates, persists and delivers a 1:1 message.
-func (h *Hub) PostDirectMessage(sender *models.User, toID uint, content, tempID string) (*models.DirectMessageDTO, *Err) {
+func (h *Hub) PostDirectMessage(sender *models.User, toID uint, content, tempID string, replyToID uint) (*models.DirectMessageDTO, *Err) {
 	u := h.reloadUser(sender.ID)
 	if u == nil {
 		return nil, newErr(http.StatusUnauthorized, "unauthorized", "用户不存在")
@@ -189,6 +201,13 @@ func (h *Hub) PostDirectMessage(sender *models.User, toID uint, content, tempID 
 	}
 
 	dm := models.DirectMessage{SenderID: u.ID, ReceiverID: toID, Content: content}
+	if replyToID > 0 {
+		var rdm models.DirectMessage
+		if h.db.Where("id = ?", replyToID).First(&rdm).Error == nil &&
+			(rdm.SenderID == u.ID || rdm.ReceiverID == u.ID) {
+			dm.ReplyToID = &replyToID
+		}
+	}
 	if err := h.db.Create(&dm).Error; err != nil {
 		return nil, newErr(http.StatusInternalServerError, "db", "保存私信失败")
 	}
@@ -264,7 +283,7 @@ func (h *Hub) botCooldownOK() bool {
 	return ok
 }
 
-func (h *Hub) handleBotChannel(channelID uint) {
+func (h *Hub) handleBotChannel(channelID, requesterID uint, replyToID *uint) {
 	if !h.botCooldownOK() {
 		return
 	}
@@ -282,8 +301,16 @@ func (h *Hub) handleBotChannel(channelID uint) {
 	var reply string
 	var err error
 	if h.st.GetBool(settings.AIToolsEnabled) {
-		reply, err = h.ai.CompleteWithTools(ctx, hist, botTools(false),
-			func(name, args string) string { return h.execBotTool(nil, name, args) })
+		requester := h.reloadUser(requesterID)
+		sys := botToolsPrompt(requester)
+		if replyToID != nil {
+			if rc := h.replyContext(*replyToID); rc != "" {
+				sys += "\n" + rc
+			}
+		}
+		hist = append([]ai.Message{{Role: "system", Content: sys}}, hist...)
+		reply, err = h.ai.CompleteWithTools(ctx, hist, botTools(true),
+			func(name, args string) string { return h.execBotTool(requester, name, args) })
 	} else {
 		reply, err = h.ai.Complete(ctx, hist)
 	}
