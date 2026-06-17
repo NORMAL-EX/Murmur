@@ -10,29 +10,54 @@ import {
   Copy,
   AtSign,
   UserRound,
+  MicOff,
+  Mic,
+  Ban,
+  ShieldCheck,
+  ShieldOff,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Menu,
-  MenuTrigger,
-  MenuPopup,
-  MenuItem,
-  MenuSeparator,
-} from '@/components/ui/menu'
+import { Input } from '@/components/ui/input'
+import { Menu, MenuTrigger, MenuPopup, MenuItem, MenuSeparator } from '@/components/ui/menu'
 import { Popover, PopoverTrigger, PopoverPopup } from '@/components/ui/popover'
-import { ContextMenu, useContextMenu, type CtxItem } from '@/components/ui/context-menu'
+import {
+  Dialog,
+  DialogPopup,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogPanel,
+  DialogFooter,
+  DialogClose,
+} from '@/components/ui/dialog'
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectPopup,
+  SelectItem,
+} from '@/components/ui/select'
+import { useCtxMenu, type CtxItem } from '@/components/ui/context-menu'
 import { MarkdownContent } from '@/components/chat/MarkdownContent'
 import { useChat } from '@/contexts/ChatContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from '@/lib/toast'
 import { initials, formatTime } from '@/lib/format'
 import { api, ApiError } from '@/lib/api'
-import type { Message } from '@/lib/types'
+import type { Message, User } from '@/lib/types'
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '🎉', '😮', '😢', '🔥', '👀']
+
+const MUTE_OPTIONS = [
+  { label: '10 分钟', minutes: 10 },
+  { label: '1 小时', minutes: 60 },
+  { label: '1 天', minutes: 1440 },
+  { label: '7 天', minutes: 10080 },
+  { label: '永久', minutes: -1 },
+]
 
 /** Identity badge shown next to a sender's name. */
 function RoleBadge({ role }: { role?: string }) {
@@ -62,19 +87,29 @@ export function MessageItem({ message }: { message: Message }) {
   const { toggleReaction, recallMessage, editMessage, selectDm, setReplyTo, requestMention } =
     useChat()
   const navigate = useNavigate()
-  const ctx = useContextMenu()
+  const openMenu = useCtxMenu()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(message.content)
   const [revealed, setRevealed] = useState<string | null>(null)
+  const [muteOpen, setMuteOpen] = useState(false)
+  const [nickOpen, setNickOpen] = useState(false)
 
   const sender = message.sender
   const isOwn = sender?.id === user?.id
-  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
   const isSuper = user?.role === 'super_admin'
+  const isAdmin = isSuper || user?.role === 'admin'
   const gone = message.deleted || message.recalled
   const withinWindow = Date.now() - new Date(message.created_at).getTime() < 40_000
   const canEdit = isOwn && !message.is_bot && !gone
   const canRecall = !gone && (isAdmin || (isOwn && !message.is_bot && withinWindow))
+  const targetMuted = !!sender?.muted_until && new Date(sender.muted_until).getTime() > Date.now()
+  const canManage =
+    !!sender &&
+    !isOwn &&
+    sender.role !== 'bot' &&
+    sender.role !== 'super_admin' &&
+    isAdmin &&
+    (isSuper || sender.role === 'user')
 
   const onReact = async (emoji: string) => {
     try {
@@ -83,7 +118,6 @@ export function MessageItem({ message }: { message: Message }) {
       toast.error('操作失败')
     }
   }
-
   const onRecall = async () => {
     try {
       await recallMessage(message.id)
@@ -91,7 +125,6 @@ export function MessageItem({ message }: { message: Message }) {
       toast.error('撤回失败', e instanceof ApiError ? e.message : undefined)
     }
   }
-
   const onReveal = async () => {
     try {
       const { content } = await api.admin.revealMessage(message.id)
@@ -100,7 +133,6 @@ export function MessageItem({ message }: { message: Message }) {
       toast.error('查看失败', e instanceof ApiError ? e.message : undefined)
     }
   }
-
   const onSaveEdit = async () => {
     const text = draft.trim()
     if (!text) return
@@ -111,12 +143,11 @@ export function MessageItem({ message }: { message: Message }) {
       toast.error('编辑失败', e instanceof ApiError ? e.message : undefined)
     }
   }
-
   const startReply = () =>
     setReplyTo({
       id: message.id,
       author: sender?.nickname || sender?.username || '用户',
-      snippet: message.content || '[图片/空]',
+      snippet: message.content || '[图片]',
     })
   const copyText = async () => {
     try {
@@ -126,56 +157,124 @@ export function MessageItem({ message }: { message: Message }) {
       toast.error('复制失败')
     }
   }
+  const act = async (fn: () => Promise<unknown>, ok: string) => {
+    try {
+      await fn()
+      toast.success(ok)
+    } catch (e) {
+      toast.error('操作失败', e instanceof ApiError ? e.message : undefined)
+    }
+  }
 
-  // Right-click menu items (role/permission-aware).
-  const ctxItems: CtxItem[] = []
+  // Right-click on the message body → message actions.
+  const messageItems: CtxItem[] = []
   if (!gone) {
-    ctxItems.push({ label: '回复', icon: <Reply className="size-4" />, onSelect: startReply })
-    ctxItems.push({ label: '复制文本', icon: <Copy className="size-4" />, onSelect: copyText })
-  }
-  if (sender && !isOwn && sender.role !== 'bot') {
-    ctxItems.push({
-      label: '发私信',
-      icon: <MessageSquare className="size-4" />,
-      onSelect: () => selectDm(sender.id),
-      separatorBefore: !gone,
-    })
-    ctxItems.push({
-      label: '@ TA',
-      icon: <AtSign className="size-4" />,
-      onSelect: () => requestMention(sender.username),
-    })
-  }
-  if (sender) {
-    ctxItems.push({
-      label: '查看资料',
-      icon: <UserRound className="size-4" />,
-      onSelect: () => navigate(`/u/${sender.id}`),
-    })
+    messageItems.push({ label: '回复', icon: <Reply className="size-4" />, onSelect: startReply })
+    messageItems.push({ label: '复制', icon: <Copy className="size-4" />, onSelect: copyText })
   }
   if (canRecall) {
-    ctxItems.push({
+    messageItems.push({
       label: '撤回',
       icon: <Undo2 className="size-4" />,
       onSelect: onRecall,
       destructive: true,
-      separatorBefore: true,
+      separatorBefore: !gone,
     })
+  }
+
+  // Right-click on the avatar / name → member actions.
+  const memberItems: CtxItem[] = []
+  if (sender) {
+    if (!isOwn && sender.role !== 'bot') {
+      memberItems.push({
+        label: '发私信',
+        icon: <MessageSquare className="size-4" />,
+        onSelect: () => selectDm(sender.id),
+      })
+      memberItems.push({
+        label: '@ TA',
+        icon: <AtSign className="size-4" />,
+        onSelect: () => requestMention(sender.username),
+      })
+    }
+    memberItems.push({
+      label: '查看资料',
+      icon: <UserRound className="size-4" />,
+      onSelect: () => navigate(`/u/${sender.id}`),
+    })
+    if (canManage) {
+      if (targetMuted) {
+        memberItems.push({
+          label: '解除禁言',
+          icon: <Mic className="size-4" />,
+          separatorBefore: true,
+          onSelect: () => act(() => api.admin.updateUser(sender.id, { mute_minutes: 0 }), '已解除禁言'),
+        })
+      } else {
+        memberItems.push({
+          label: '禁言',
+          icon: <MicOff className="size-4" />,
+          separatorBefore: true,
+          onSelect: () => setMuteOpen(true),
+        })
+      }
+      if (sender.status === 'banned') {
+        memberItems.push({
+          label: '解除封禁',
+          icon: <Undo2 className="size-4" />,
+          onSelect: () => act(() => api.admin.updateUser(sender.id, { status: 'active' }), '已解封'),
+        })
+      } else {
+        memberItems.push({
+          label: '封禁',
+          icon: <Ban className="size-4" />,
+          destructive: true,
+          onSelect: () => act(() => api.admin.updateUser(sender.id, { status: 'banned' }), '已封禁'),
+        })
+      }
+      memberItems.push({
+        label: '修改群昵称',
+        icon: <Pencil className="size-4" />,
+        onSelect: () => setNickOpen(true),
+      })
+    }
+    if (isSuper && !isOwn && sender.role === 'user') {
+      memberItems.push({
+        label: '设为管理员',
+        icon: <ShieldCheck className="size-4" />,
+        separatorBefore: true,
+        onSelect: () => act(() => api.admin.updateUser(sender.id, { role: 'admin' }), '已设为管理员'),
+      })
+    }
+    if (isSuper && sender.role === 'admin') {
+      memberItems.push({
+        label: '取消管理员',
+        icon: <ShieldOff className="size-4" />,
+        separatorBefore: true,
+        onSelect: () => act(() => api.admin.updateUser(sender.id, { role: 'user' }), '已取消管理员'),
+      })
+    }
+  }
+
+  const scrollToReply = () => {
+    if (!message.reply_to) return
+    const el = document.getElementById(`msg-${message.reply_to.id}`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el.classList.add('bg-primary/10')
+      setTimeout(() => el.classList.remove('bg-primary/10'), 1200)
+    }
   }
 
   return (
     <div
-      className="group flex gap-3 px-4 py-1.5 hover:bg-muted/40"
-      onContextMenu={(e) => {
-        if (ctxItems.length) ctx.open(e)
-      }}
+      id={`msg-${message.id}`}
+      className="group flex gap-3 px-4 py-1.5 transition-colors hover:bg-muted/40"
     >
-      {ctx.pos && (
-        <ContextMenu x={ctx.pos.x} y={ctx.pos.y} items={ctxItems} onClose={ctx.close} />
-      )}
       <button
         type="button"
         onClick={() => sender && navigate(`/u/${sender.id}`)}
+        onContextMenu={(e) => openMenu(e, memberItems)}
         className="mt-0.5 shrink-0"
       >
         <Avatar className="size-9">
@@ -184,11 +283,12 @@ export function MessageItem({ message }: { message: Message }) {
         </Avatar>
       </button>
 
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1" onContextMenu={(e) => openMenu(e, messageItems)}>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => sender && navigate(`/u/${sender.id}`)}
+            onContextMenu={(e) => openMenu(e, memberItems)}
             className="font-medium text-sm hover:underline"
           >
             {sender?.nickname || sender?.username || '未知用户'}
@@ -197,6 +297,20 @@ export function MessageItem({ message }: { message: Message }) {
           <span className="text-muted-foreground text-xs">{formatTime(message.created_at)}</span>
           {message.edited && <span className="text-muted-foreground text-xs">(已编辑)</span>}
         </div>
+
+        {message.reply_to && !gone && (
+          <button
+            type="button"
+            onClick={scrollToReply}
+            className="mb-0.5 flex max-w-full items-center gap-1 rounded border-primary border-l-2 bg-muted/50 px-2 py-0.5 text-left text-muted-foreground text-xs hover:bg-muted"
+          >
+            <Reply className="size-3 shrink-0" />
+            <span className="shrink-0 font-medium text-foreground/80">{message.reply_to.sender_name}</span>
+            <span className="truncate">
+              {message.reply_to.recalled ? '[已撤回]' : message.reply_to.content}
+            </span>
+          </button>
+        )}
 
         {message.recalled ? (
           <div className="text-muted-foreground text-sm italic">
@@ -271,6 +385,14 @@ export function MessageItem({ message }: { message: Message }) {
 
       {!gone && !editing && (
         <div className="flex items-start gap-1 self-start opacity-0 transition-opacity group-hover:opacity-100">
+          <Button
+            variant="outline"
+            size="icon-xs"
+            aria-label="回复"
+            onClick={startReply}
+          >
+            <Reply />
+          </Button>
           <Popover>
             <PopoverTrigger
               render={
@@ -304,12 +426,6 @@ export function MessageItem({ message }: { message: Message }) {
               }
             />
             <MenuPopup className="min-w-[140px] menu-popup-animated" align="end">
-              {!isOwn && sender && sender.role !== 'bot' && (
-                <MenuItem onClick={() => selectDm(sender.id)} className="flex items-center gap-2">
-                  <MessageSquare className="size-4" />
-                  发私信
-                </MenuItem>
-              )}
               {canEdit && (
                 <MenuItem onClick={() => setEditing(true)} className="flex items-center gap-2">
                   <Pencil className="size-4" />
@@ -318,7 +434,7 @@ export function MessageItem({ message }: { message: Message }) {
               )}
               {canRecall && (
                 <>
-                  {(canEdit || (!isOwn && sender?.role !== 'bot')) && <MenuSeparator />}
+                  {canEdit && <MenuSeparator />}
                   <MenuItem onClick={onRecall} variant="destructive" className="flex items-center gap-2">
                     <Undo2 className="size-4" />
                     撤回
@@ -329,7 +445,96 @@ export function MessageItem({ message }: { message: Message }) {
           </Menu>
         </div>
       )}
+
+      {muteOpen && sender && <MemberMuteDialog user={sender} onClose={() => setMuteOpen(false)} />}
+      {nickOpen && sender && <MemberNickDialog user={sender} onClose={() => setNickOpen(false)} />}
     </div>
+  )
+}
+
+function MemberMuteDialog({ user, onClose }: { user: User; onClose: () => void }) {
+  const [minutes, setMinutes] = useState('60')
+  const [saving, setSaving] = useState(false)
+  const save = async () => {
+    setSaving(true)
+    try {
+      await api.admin.updateUser(user.id, { mute_minutes: Number(minutes) })
+      toast.success('已禁言')
+      onClose()
+    } catch (e) {
+      toast.error('操作失败', e instanceof ApiError ? e.message : undefined)
+    } finally {
+      setSaving(false)
+    }
+  }
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogPopup className="max-w-xs">
+        <DialogHeader>
+          <DialogTitle>禁言 · {user.nickname || user.username}</DialogTitle>
+          <DialogDescription>禁言期间该成员可浏览但不能发送消息。</DialogDescription>
+        </DialogHeader>
+        <DialogPanel>
+          <Select value={minutes} onValueChange={(v) => setMinutes(v as string)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectPopup>
+              {MUTE_OPTIONS.map((o) => (
+                <SelectItem key={o.minutes} value={String(o.minutes)}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectPopup>
+          </Select>
+        </DialogPanel>
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>取消</DialogClose>
+          <Button variant="default" onClick={save} disabled={saving}>
+            确定禁言
+          </Button>
+        </DialogFooter>
+      </DialogPopup>
+    </Dialog>
+  )
+}
+
+function MemberNickDialog({ user, onClose }: { user: User; onClose: () => void }) {
+  const [nick, setNick] = useState(user.nickname || '')
+  const [saving, setSaving] = useState(false)
+  const save = async () => {
+    if (!nick.trim()) {
+      toast.error('昵称不能为空')
+      return
+    }
+    setSaving(true)
+    try {
+      await api.admin.updateUser(user.id, { nickname: nick.trim() })
+      toast.success('已修改群昵称')
+      onClose()
+    } catch (e) {
+      toast.error('操作失败', e instanceof ApiError ? e.message : undefined)
+    } finally {
+      setSaving(false)
+    }
+  }
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogPopup className="max-w-xs">
+        <DialogHeader>
+          <DialogTitle>修改群昵称 · @{user.username}</DialogTitle>
+        </DialogHeader>
+        <DialogPanel>
+          <Input value={nick} onChange={(e) => setNick(e.target.value)} placeholder="新的群昵称" autoFocus />
+        </DialogPanel>
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>取消</DialogClose>
+          <Button variant="default" onClick={save} disabled={saving}>
+            保存
+          </Button>
+        </DialogFooter>
+      </DialogPopup>
+    </Dialog>
   )
 }
 

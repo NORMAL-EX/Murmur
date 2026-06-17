@@ -58,8 +58,8 @@ interface ChatContextType {
   selectChannel: (id: number) => void
   selectDm: (userId: number) => void
   loadMore: () => void
-  sendMessage: (content: string) => void
-  sendDm: (content: string) => void
+  sendMessage: (content: string, replyTo?: number) => void
+  sendDm: (content: string, replyTo?: number) => void
   editMessage: (id: number, content: string) => Promise<void>
   deleteMessage: (id: number) => Promise<void>
   recallMessage: (id: number) => Promise<void>
@@ -403,10 +403,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [channelHasMore, messages, dmHasMore, dmMessages])
 
   const sendMessage = useCallback(
-    (content: string) => {
+    (content: string, replyTo?: number) => {
       const v = viewRef.current
       if (v?.type !== 'channel') return
-      if (!send({ type: 'chat_message', channel_id: v.id, content })) {
+      if (!send({ type: 'chat_message', channel_id: v.id, content, reply_to: replyTo })) {
         toast.error('连接已断开', '正在重连,请稍候')
       }
     },
@@ -414,10 +414,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   )
 
   const sendDm = useCallback(
-    (content: string) => {
+    (content: string, replyTo?: number) => {
       const v = viewRef.current
       if (v?.type !== 'dm') return
-      if (!send({ type: 'dm_message', to: v.userId, content })) {
+      if (!send({ type: 'dm_message', to: v.userId, content, reply_to: replyTo })) {
         toast.error('连接已断开', '正在重连,请稍候')
       }
     },

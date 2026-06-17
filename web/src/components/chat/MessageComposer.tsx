@@ -142,13 +142,8 @@ export function MessageComposer() {
       setUploading(false)
     }
 
-    if (replyTo) {
-      const q = replyTo.snippet.replace(/\s+/g, ' ').trim().slice(0, 80)
-      content = `> **回复 ${replyTo.author}**：${q}\n\n${content}`
-    }
-
-    if (isChannel) sendMessage(content)
-    else if (view?.type === 'dm') sendDm(content)
+    if (isChannel) sendMessage(content, replyTo?.id)
+    else if (view?.type === 'dm') sendDm(content, replyTo?.id)
     setText('')
     setImage(null)
     setMention(null)

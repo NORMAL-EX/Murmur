@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 
 export interface CtxItem {
   label: string
@@ -8,36 +8,33 @@ export interface CtxItem {
   separatorBefore?: boolean
 }
 
-/** Tracks right-click position; clamps to the viewport so the menu stays visible. */
-export function useContextMenu() {
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
-  const open = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    const x = Math.min(e.clientX, window.innerWidth - 200)
-    const y = Math.min(e.clientY, window.innerHeight - 280)
-    setPos({ x: Math.max(8, x), y: Math.max(8, y) })
-  }, [])
-  const close = useCallback(() => setPos(null), [])
-  return { pos, open, close }
+type OpenFn = (e: React.MouseEvent, items: CtxItem[]) => void
+
+const CtxMenuContext = createContext<OpenFn>(() => {})
+
+/** Returns open(event, items) to show a single shared cursor-positioned menu. */
+export function useCtxMenu() {
+  return useContext(CtxMenuContext)
 }
 
-/** A lightweight cursor-positioned menu. Closes on outside click / Esc / scroll. */
-export function ContextMenu({
-  x,
-  y,
-  items,
-  onClose,
-}: {
-  x: number
-  y: number
-  items: CtxItem[]
-  onClose: () => void
-}) {
+/** A singleton context menu — only one is ever shown, so menus never stack. */
+export function ContextMenuProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<{ x: number; y: number; items: CtxItem[] } | null>(null)
+  const close = useCallback(() => setState(null), [])
+
+  const open = useCallback<OpenFn>((e, items) => {
+    if (!items.length) return
+    e.preventDefault()
+    e.stopPropagation() // keep other open menus' document listeners from firing
+    const x = Math.min(e.clientX, window.innerWidth - 210)
+    const y = Math.min(e.clientY, window.innerHeight - 16 - items.length * 38)
+    setState({ x: Math.max(8, x), y: Math.max(8, y), items })
+  }, [])
+
   useEffect(() => {
-    const close = () => onClose()
+    if (!state) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') close()
     }
     const t = window.setTimeout(() => {
       document.addEventListener('click', close)
@@ -52,36 +49,41 @@ export function ContextMenu({
       document.removeEventListener('scroll', close, true)
       document.removeEventListener('keydown', onKey)
     }
-  }, [onClose])
+  }, [state, close])
 
   return (
-    <div
-      style={{ top: y, left: x }}
-      onClick={(e) => e.stopPropagation()}
-      className="fixed z-[90] min-w-[160px] overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg"
-    >
-      {items.map((it, i) => (
-        <div key={i}>
-          {it.separatorBefore && <div className="my-1 h-px bg-border" />}
-          <button
-            type="button"
-            onClick={() => {
-              it.onSelect()
-              onClose()
-            }}
-            className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm ${
-              it.destructive
-                ? 'text-destructive hover:bg-destructive/10'
-                : 'hover:bg-accent hover:text-accent-foreground'
-            }`}
-          >
-            {it.icon}
-            {it.label}
-          </button>
+    <CtxMenuContext.Provider value={open}>
+      {children}
+      {state && (
+        <div
+          style={{ top: state.y, left: state.x }}
+          onClick={(e) => e.stopPropagation()}
+          className="fixed z-[100] min-w-[180px] overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg"
+        >
+          {state.items.map((it, i) => (
+            <div key={i}>
+              {it.separatorBefore && <div className="my-1 h-px bg-border" />}
+              <button
+                type="button"
+                onClick={() => {
+                  close()
+                  it.onSelect()
+                }}
+                className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm ${
+                  it.destructive
+                    ? 'text-destructive hover:bg-destructive/10'
+                    : 'hover:bg-accent hover:text-accent-foreground'
+                }`}
+              >
+                {it.icon}
+                {it.label}
+              </button>
+            </div>
+          ))}
         </div>
-      ))}
-    </div>
+      )}
+    </CtxMenuContext.Provider>
   )
 }
 
-export default ContextMenu
+export default ContextMenuProvider

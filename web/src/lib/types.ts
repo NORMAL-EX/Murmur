@@ -37,11 +37,20 @@ export interface Reaction {
   reacted: boolean
 }
 
+export interface ReplyPreview {
+  id: number
+  sender_id: number
+  sender_name: string
+  content: string
+  recalled: boolean
+}
+
 export interface Message {
   id: number
   channel_id: number
   sender_id: number
   sender?: User
+  reply_to?: ReplyPreview
   content: string
   edited: boolean
   deleted: boolean
@@ -58,6 +67,7 @@ export interface DirectMessage {
   sender_id: number
   receiver_id: number
   sender?: User
+  reply_to?: ReplyPreview
   content: string
   read_at: string | null
   recalled?: boolean
@@ -170,8 +180,8 @@ export interface DMAuditThread {
 // ---- WebSocket envelopes ----
 
 export type WSOutbound =
-  | { type: 'chat_message'; channel_id: number; content: string; temp_id?: string }
-  | { type: 'dm_message'; to: number; content: string; temp_id?: string }
+  | { type: 'chat_message'; channel_id: number; content: string; temp_id?: string; reply_to?: number }
+  | { type: 'dm_message'; to: number; content: string; temp_id?: string; reply_to?: number }
   | { type: 'typing'; channel_id?: number; to?: number }
   | { type: 'read_dm'; from: number }
   | { type: 'ping' }

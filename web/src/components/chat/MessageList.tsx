@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Loader2, Undo2 } from 'lucide-react'
+import { Loader2, Undo2, Reply } from 'lucide-react'
 import { MessageItem } from '@/components/chat/MessageItem'
 import { MarkdownContent } from '@/components/chat/MarkdownContent'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -21,22 +21,9 @@ function DayDivider({ label }: { label: string }) {
   )
 }
 
-function RecallButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label="撤回"
-      className="self-end p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
-    >
-      <Undo2 className="size-3.5" />
-    </button>
-  )
-}
-
 function DMBubble({ dm }: { dm: DirectMessage }) {
   const { user } = useAuth()
-  const { recallDm } = useChat()
+  const { recallDm, setReplyTo } = useChat()
   const navigate = useNavigate()
   const [revealed, setRevealed] = useState<string | null>(null)
   const mine = dm.sender_id === user?.id
@@ -61,6 +48,20 @@ function DMBubble({ dm }: { dm: DirectMessage }) {
       toast.error('查看失败', e instanceof ApiError ? e.message : undefined)
     }
   }
+  const startReply = () =>
+    setReplyTo({
+      id: dm.id,
+      author: mine ? '我' : sender?.nickname || sender?.username || '对方',
+      snippet: dm.content || '[图片]',
+    })
+
+  const replyEl =
+    dm.reply_to && !dm.recalled ? (
+      <div className="mb-1 truncate border-current/40 border-l-2 pl-1.5 text-xs opacity-80">
+        <span className="font-medium">{dm.reply_to.sender_name}</span>:{' '}
+        {dm.reply_to.recalled ? '[已撤回]' : dm.reply_to.content}
+      </div>
+    ) : null
 
   const body = dm.recalled ? (
     <span className="text-sm italic opacity-80">
@@ -82,11 +83,37 @@ function DMBubble({ dm }: { dm: DirectMessage }) {
     <MarkdownContent content={dm.content} />
   )
 
+  const actions = (
+    <div className="flex items-center gap-0.5 self-end opacity-0 transition-opacity group-hover:opacity-100">
+      {!dm.recalled && (
+        <button
+          type="button"
+          onClick={startReply}
+          aria-label="回复"
+          className="p-1 text-muted-foreground hover:text-foreground"
+        >
+          <Reply className="size-3.5" />
+        </button>
+      )}
+      {canRecall && (
+        <button
+          type="button"
+          onClick={onRecall}
+          aria-label="撤回"
+          className="p-1 text-muted-foreground hover:text-foreground"
+        >
+          <Undo2 className="size-3.5" />
+        </button>
+      )}
+    </div>
+  )
+
   if (mine) {
     return (
       <div className="group flex items-end justify-end gap-1 px-4 py-1">
-        {canRecall && <RecallButton onClick={onRecall} />}
+        {actions}
         <div className="max-w-[75%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-primary-foreground">
+          {replyEl}
           {body}
           <div className="mt-0.5 text-right text-[10px] text-primary-foreground/70">
             {formatTime(dm.created_at)}
@@ -104,10 +131,11 @@ function DMBubble({ dm }: { dm: DirectMessage }) {
         </Avatar>
       </button>
       <div className="max-w-[75%] rounded-2xl rounded-bl-sm bg-muted px-3 py-2">
+        {replyEl}
         {body}
         <div className="mt-0.5 text-[10px] text-muted-foreground">{formatTime(dm.created_at)}</div>
       </div>
-      {canRecall && <RecallButton onClick={onRecall} />}
+      {actions}
     </div>
   )
 }
